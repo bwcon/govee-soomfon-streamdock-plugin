@@ -86,11 +86,14 @@ fetchBtn.addEventListener('click', () => {
         return;
     }
     statusMsg.innerText = "Fetching devices...";
-    websocket.send(JSON.stringify({
-        event: "sendToPlugin",
-        context: actionContext,
-        payload: { command: "fetchDevices", apiKey: key }
-    }));
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify({
+            event: "sendToPlugin",
+            action: actionInfo.action,
+            context: pluginUUID,
+            payload: { command: "fetchDevices", apiKey: key, actionContext: actionContext }
+        }));
+    }
 });
 
 function renderDeviceList(availableDevices, selectedDevices) {

@@ -55,6 +55,8 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info) {
             updateDeviceState(context);
         } else if (event === "sendToPlugin") {
             if (payload.payload && payload.payload.command === "fetchDevices") {
+                const piContext = payload.payload.actionContext || context;
+                
                 // Update global API key if provided
                 if (payload.payload.apiKey) {
                     globalSettings.apiKey = payload.payload.apiKey;
@@ -77,7 +79,7 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info) {
 
                     if (devices.length > 0) {
                         websocket.send(JSON.stringify({
-                            event: "sendToPropertyInspector", context: context,
+                            event: "sendToPropertyInspector", context: piContext,
                             payload: { command: "deviceList", devices: devices }
                         }));
                     } else {
@@ -88,14 +90,14 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info) {
                             if (resV1 && resV1.code === 200 && resV1.data && resV1.data.devices) {
                                 let devV1 = resV1.data.devices.map(d => ({ device: d.device, model: d.model, deviceName: d.deviceName, apiVersion: 1 }));
                                 websocket.send(JSON.stringify({
-                                    event: "sendToPropertyInspector", context: context,
+                                    event: "sendToPropertyInspector", context: piContext,
                                     payload: { command: "deviceList", devices: devV1 }
                                 }));
                             } else {
                                 let msg = (resV2.message || resV2.code) + " (v2); " + (resV1.message || resV1.code) + " (v1)";
-                                sendPropertyInspectorError(context, "API Error: " + msg);
+                                sendPropertyInspectorError(piContext, "API Error: " + msg);
                             }
-                        }).catch(e => sendPropertyInspectorError(context, String(e)));
+                        }).catch(e => sendPropertyInspectorError(piContext, String(e)));
                     }
                 }).catch(e => {
                     log("v2 fetch threw, trying v1... " + e);
@@ -103,13 +105,13 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info) {
                         if (resV1 && resV1.code === 200 && resV1.data && resV1.data.devices) {
                             let devV1 = resV1.data.devices.map(d => ({ device: d.device, model: d.model, deviceName: d.deviceName, apiVersion: 1 }));
                             websocket.send(JSON.stringify({
-                                event: "sendToPropertyInspector", context: context,
+                                event: "sendToPropertyInspector", context: piContext,
                                 payload: { command: "deviceList", devices: devV1 }
                             }));
                         } else {
-                            sendPropertyInspectorError(context, "API Error: " + (resV1.message || resV1.code));
+                            sendPropertyInspectorError(piContext, "API Error: " + (resV1.message || resV1.code));
                         }
-                    }).catch(e2 => sendPropertyInspectorError(context, String(e2)));
+                    }).catch(e2 => sendPropertyInspectorError(piContext, String(e2)));
                 });
             }
         } else if (event === "keyUp" || event === "touchTap") {
