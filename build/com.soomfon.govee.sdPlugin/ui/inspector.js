@@ -68,6 +68,17 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info, actionIn
     };
 }
 
+apiKeyInput.addEventListener('input', () => {
+    globalSettings.apiKey = apiKeyInput.value.trim();
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(JSON.stringify({
+            event: "setGlobalSettings",
+            context: pluginUUID,
+            payload: globalSettings
+        }));
+    }
+});
+
 fetchBtn.addEventListener('click', () => {
     const key = apiKeyInput.value.trim();
     if (!key) {

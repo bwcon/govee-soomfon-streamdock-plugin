@@ -13,6 +13,8 @@ let stateCache = {}; // map device -> {power, brightness, color, lastFetch}
 let dialDebounce = {};
 
 function log(msg) {
+    const ts = new Date().toISOString();
+    fs.appendFileSync(path.join(__dirname, 'debug.log'), `[${ts}] [Govee] ${msg}\n`);
     console.log(`[Govee] ${msg}`);
 }
 
@@ -62,6 +64,7 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info) {
                 }
                 
                 requestGovee('GET', '/devices').then(res => {
+                    log(`Fetch devices response: ${JSON.stringify(res)}`);
                     if (res && res.data && res.data.devices) {
                         websocket.send(JSON.stringify({
                             event: "sendToPropertyInspector",

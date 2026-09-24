@@ -13,6 +13,8 @@ let stateCache = {}; // map device -> {power, brightness, color, lastFetch}
 let dialDebounce = {};
 
 function log(msg) {
+    const ts = new Date().toISOString();
+    fs.appendFileSync(path.join(__dirname, 'debug.log'), `[${ts}] [Govee] ${msg}\n`);
     console.log(`[Govee] ${msg}`);
 }
 
@@ -62,6 +64,7 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info) {
                 }
                 
                 requestGovee('GET', '/devices').then(res => {
+                    log(`Fetch devices response: ${JSON.stringify(res)}`);
                     if (res && res.data && res.data.devices) {
                         websocket.send(JSON.stringify({
                             event: "sendToPropertyInspector",
@@ -286,12 +289,21 @@ function generateSVG(power, brightness, color, isDial) {
     const h = isDial ? 100 : 144;
     const opacity = power === "on" ? 1.0 : 0.3;
     
+    const cx = w/2;
+    const cy = h/2 - (isDial ? 0 : 15);
+    const r = isDial ? 35 : 38;
+    
     // Smooth modern gradient ring design for Govee
     return `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
         <rect width="${w}" height="${h}" fill="#0f0f0f" rx="15"/>
-        <circle cx="${w/2}" cy="${h/2}" r="${isDial ? 35 : 45}" fill="${color}" opacity="${opacity}"/>
-        ${power === "on" ? `<circle cx="${w/2}" cy="${h/2}" r="${isDial ? 35 : 45}" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.5"/>` : ""}
-        <text x="${w/2}" y="${h/2 + 5}" font-family="Arial, sans-serif" font-size="${isDial ? 14 : 18}" font-weight="bold" fill="#ffffff" text-anchor="middle" opacity="${opacity}">${power === "on" ? brightness + '%' : 'OFF'}</text>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" opacity="${opacity}"/>
+        ${power === "on" ? `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.6"/>` : ""}
+        
+        <g transform="translate(${cx - 12}, ${cy - 12}) scale(1.0)" opacity="${opacity}">
+            <path fill="#ffffff" d="M12,2C8.13,2 5,5.13 5,9c0,2.38 1.19,4.47 3,5.74V17c0,0.55 0.45,1 1,1h6c0.55,0 1,-0.45 1,-1v-2.26c1.81,-1.27 3,-3.36 3,-5.74C19,5.13 15.87,2 12,2z M14,15h-4v-1h4V15z M14,13h-4v-1h4V13z M12,22c1.1,0 2,-0.9 2,-2h-4C10,21.1 10.9,22 12,22z"/>
+        </g>
+
+        <text x="${w/2}" y="${h - 12}" font-family="Arial, sans-serif" font-size="${isDial ? 14 : 16}" font-weight="bold" fill="#ffffff" text-anchor="middle" opacity="${opacity}">${power === "on" ? brightness + '%' : 'OFF'}</text>
     </svg>`;
 }
 
