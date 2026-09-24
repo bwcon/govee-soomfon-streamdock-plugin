@@ -1,0 +1,59 @@
+{
+  "Actions": [
+    {
+      "Icon": "images/actions/power.png",
+      "Name": "Govee Power (Key)",
+      "States": [{"Image": "images/actions/power.png", "TitleAlignment": "bottom", "FontSize": "11"}],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Turn Govee light(s) on or off. Supports multi-device selection.",
+      "UUID": "com.soomfon.govee.power",
+      "PropertyInspectorPath": "ui/inspector.html",
+      "Controllers": ["Keypad", "Knob", "SecondaryScreen", "Information"]
+    },
+    {
+      "Icon": "images/actions/color.png",
+      "Name": "Govee Color (Key)",
+      "States": [{"Image": "images/actions/color.png", "TitleAlignment": "bottom", "FontSize": "11"}],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Set specific color to Govee light(s).",
+      "UUID": "com.soomfon.govee.color",
+      "PropertyInspectorPath": "ui/inspector.html",
+      "Controllers": ["Keypad", "Knob", "SecondaryScreen", "Information"]
+    },
+    {
+      "Icon": "images/actions/brightness.png",
+      "Name": "Govee Brightness (Key)",
+      "States": [{"Image": "images/actions/brightness.png", "TitleAlignment": "bottom", "FontSize": "11"}],
+      "SupportedInMultiActions": true,
+      "Tooltip": "Set specific brightness to Govee light(s).",
+      "UUID": "com.soomfon.govee.brightness",
+      "PropertyInspectorPath": "ui/inspector.html",
+      "Controllers": ["Keypad", "Knob", "SecondaryScreen", "Information"]
+    },
+    {
+      "Icon": "images/actions/dial.png",
+      "Name": "Govee Multi-Dial (Knob)",
+      "States": [{"Image": "images/actions/dial.png"}],
+      "SupportedInMultiActions": false,
+      "Tooltip": "Turn knob to adjust brightness or color temp. Press to toggle power.",
+      "UUID": "com.soomfon.govee.dial",
+      "PropertyInspectorPath": "ui/inspector.html",
+      "Controllers": ["Knob", "SecondaryScreen", "Information", "Encoder"]
+    }
+  ],
+  "Author": "bwcon",
+  "Category": "Govee Studio",
+  "CategoryIcon": "images/category-icon.png",
+  "CodePath": "index.js",
+  "CodePathWin": "index.js",
+  "CodePathMac": "index.js",
+  "Nodejs": { "Version": "20" },
+  "Description": "Advanced multi-device Govee controller with 2-way feedback, real-time color syncing, and smooth rotary dial support.",
+  "Icon": "images/plugin-icon.png",
+  "Name": "Govee Studio",
+  "OS": [{"MinimumVersion": "10", "Platform": "windows"}, {"MinimumVersion": "10.11", "Platform": "mac"}],
+  "Software": {"MinimumVersion": "2.0"},
+  "URL": "https://github.com/bwcon/govee-soomfon-streamdock-plugin",
+  "Version": "1.0.0",
+  "UUID": "com.soomfon.govee"
+}

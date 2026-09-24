@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Govee Settings</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #2d2d2d;
+            color: #d8d8d8;
+            margin: 0;
+            padding: 10px;
+            font-size: 13px;
+        }
+        .row {
+            margin-bottom: 15px;
+        }
+        .label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input[type="text"], input[type="color"], input[type="number"], select {
+            width: 100%;
+            padding: 6px;
+            box-sizing: border-box;
+            background: #3a3a3a;
+            color: #fff;
+            border: 1px solid #555;
+            border-radius: 3px;
+        }
+        button {
+            background-color: #0078d7;
+            color: #fff;
+            border: none;
+            padding: 6px 12px;
+            cursor: pointer;
+            border-radius: 3px;
+            width: 100%;
+        }
+        button:hover { background-color: #005a9e; }
+        .device-list {
+            background: #1e1e1e;
+            padding: 5px;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #555;
+            border-radius: 3px;
+        }
+        .device-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .device-item input { margin-right: 8px; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="row">
+        <label class="label">Govee Developer API Key:</label>
+        <input type="text" id="apiKey" placeholder="00000000-0000-0000-0000-000000000000">
+        <div style="margin-top: 5px;">
+            <button id="fetchBtn">Fetch Devices</button>
+        </div>
+        <div id="statusMsg" style="color: #f39c12; margin-top: 5px; font-size: 11px;"></div>
+    </div>
+
+    <div class="row">
+        <label class="label">Select Target Device(s):</label>
+        <div class="device-list" id="deviceList">
+            <!-- Checkboxes injected here -->
+        </div>
+    </div>
+
+    <!-- Dynamic Settings specific to Action Type -->
+    <div class="row hidden" id="colorBlock">
+        <label class="label">Target Color:</label>
+        <input type="color" id="targetColor" value="#ff0000">
+    </div>
+
+    <div class="row hidden" id="brightnessBlock">
+        <label class="label">Target Brightness (1-100):</label>
+        <input type="number" id="targetBrightness" min="1" max="100" value="100">
+    </div>
+
+    <script src="inspector.js"></script>
+</body>
+</html>
