@@ -8,7 +8,7 @@
       "Tooltip": "Turn Govee light(s) on or off. Supports multi-device selection.",
       "UUID": "com.soomfon.govee.power",
       "PropertyInspectorPath": "ui/inspector.html",
-      "Controllers": ["Keypad", "Knob", "SecondaryScreen", "Information"]
+      "Controllers": ["Keypad", "Information"]
     },
     {
       "Icon": "images/actions/color.png",
@@ -18,7 +18,7 @@
       "Tooltip": "Set specific color to Govee light(s).",
       "UUID": "com.soomfon.govee.color",
       "PropertyInspectorPath": "ui/inspector.html",
-      "Controllers": ["Keypad", "Knob", "SecondaryScreen", "Information"]
+      "Controllers": ["Keypad", "Information"]
     },
     {
       "Icon": "images/actions/brightness.png",
@@ -28,7 +28,7 @@
       "Tooltip": "Set specific brightness to Govee light(s).",
       "UUID": "com.soomfon.govee.brightness",
       "PropertyInspectorPath": "ui/inspector.html",
-      "Controllers": ["Keypad", "Knob", "SecondaryScreen", "Information"]
+      "Controllers": ["Keypad", "Information"]
     },
     {
       "Icon": "images/actions/dial.png",
@@ -38,7 +38,7 @@
       "Tooltip": "Turn knob to adjust brightness or color temp. Press to toggle power.",
       "UUID": "com.soomfon.govee.dial",
       "PropertyInspectorPath": "ui/inspector.html",
-      "Controllers": ["Knob", "SecondaryScreen", "Information", "Encoder"]
+      "Controllers": ["Knob", "Encoder", "SecondaryScreen"]
     }
   ],
   "Author": "bwcon",

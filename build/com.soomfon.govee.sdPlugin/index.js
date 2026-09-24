@@ -41,6 +41,8 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info) {
         const context = payload.context;
         const action = payload.action;
 
+        log(`Received event: ${event}`);
+
         if (event === "didReceiveGlobalSettings") {
             globalSettings = payload.payload.settings;
         } else if (event === "willAppear") {
@@ -114,12 +116,14 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info) {
                     }).catch(e2 => sendPropertyInspectorError(piContext, String(e2)));
                 });
             }
-        } else if (event === "keyUp" || event === "touchTap") {
-            handleAction(context, action, payload.payload.settings);
-        } else if (event === "dialRotate") {
+        } else if (event === "sendToPropertyInspector") {
+            // ... handled ...
+        } else if (event === "keyUp" || event === "touchTap" || event === "dialDown" || event === "dialUp" || event === "dialPress" || event === "encoderDown" || event === "encoderUp") {
+            if (event === "keyUp" || event === "touchTap" || event === "dialDown" || event === "encoderDown" || event === "dialPress") {
+                handleAction(context, action, payload.payload.settings, event);
+            }
+        } else if (event === "dialRotate" || event === "encoderRotate") {
             handleDial(context, payload.payload.settings, payload.payload.ticks);
-        } else if (event === "dialDown") {
-            handleAction(context, action, payload.payload.settings);
         }
     });
 }
@@ -277,11 +281,14 @@ async function getDeviceState(dev) {
     return null;
 }
 
-async function handleAction(context, action, settings) {
+async function handleAction(context, action, settings, eventName) {
     const devices = settings.devices || [];
     if (devices.length === 0) return;
 
-    if (action === "com.soomfon.govee.power" || action === "com.soomfon.govee.dial") {
+    // Force toggle power if it's the dial action or if a knob was physically pressed
+    const isKnobPress = (eventName === "dialDown" || eventName === "encoderDown" || eventName === "dialPress");
+    
+    if (action === "com.soomfon.govee.power" || action === "com.soomfon.govee.dial" || isKnobPress) {
         const state = await getDeviceState(devices[0]);
         const targetState = (state && state.powerState === "on") ? "off" : "on";
         
@@ -320,7 +327,7 @@ function handleDial(context, settings, ticks) {
 
     dialDebounce[context].timer = setTimeout(async () => {
         const state = await getDeviceState(devices[0]);
-        let currentBr = (state && state.brightness) ? state.brightness : 50;
+        let currentBr = (state && state.brightness) ? parseInt(state.brightness) : 50;
         let newBr = currentBr + dialDebounce[context].value;
         if (newBr > 100) newBr = 100;
         if (newBr < 1) newBr = 1;
