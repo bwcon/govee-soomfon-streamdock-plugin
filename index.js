@@ -18,6 +18,8 @@ function log(msg) {
     console.log(`[Govee] ${msg}`);
 }
 
+log("Plugin started!");
+
 function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info) {
     pluginUUID = uuid;
     websocket = new WebSocket(`ws://127.0.0.1:${port}`);
@@ -63,27 +65,51 @@ function connectElgatoStreamDeckSocket(port, uuid, registerEvent, info) {
                     }));
                 }
                 
-                requestGovee('GET', '/devices').then(res => {
-                    log(`Fetch devices response: ${JSON.stringify(res)}`);
-                    if (res && res.data && res.data.devices) {
+                log("Fetching devices...");
+                
+                // Try v2 first
+                requestGovee('GET', true, '/user/devices').then(resV2 => {
+                    log(`Fetch v2 response: ${JSON.stringify(resV2)}`);
+                    let devices = [];
+                    if (resV2 && resV2.code === 200 && Array.isArray(resV2.data)) {
+                        devices = resV2.data.map(d => ({ device: d.device, model: d.sku, deviceName: d.deviceName, apiVersion: 2 }));
+                    }
+
+                    if (devices.length > 0) {
                         websocket.send(JSON.stringify({
-                            event: "sendToPropertyInspector",
-                            context: context,
-                            payload: { command: "deviceList", devices: res.data.devices }
+                            event: "sendToPropertyInspector", context: context,
+                            payload: { command: "deviceList", devices: devices }
                         }));
                     } else {
-                        websocket.send(JSON.stringify({
-                            event: "sendToPropertyInspector",
-                            context: context,
-                            payload: { command: "fetchError", message: res.message || "Failed to fetch devices" }
-                        }));
+                        // Fallback to v1
+                        log("v2 returned no devices, trying v1...");
+                        requestGovee('GET', false, '/devices').then(resV1 => {
+                            log(`Fetch v1 response: ${JSON.stringify(resV1)}`);
+                            if (resV1 && resV1.code === 200 && resV1.data && resV1.data.devices) {
+                                let devV1 = resV1.data.devices.map(d => ({ device: d.device, model: d.model, deviceName: d.deviceName, apiVersion: 1 }));
+                                websocket.send(JSON.stringify({
+                                    event: "sendToPropertyInspector", context: context,
+                                    payload: { command: "deviceList", devices: devV1 }
+                                }));
+                            } else {
+                                let msg = (resV2.message || resV2.code) + " (v2); " + (resV1.message || resV1.code) + " (v1)";
+                                sendPropertyInspectorError(context, "API Error: " + msg);
+                            }
+                        }).catch(e => sendPropertyInspectorError(context, String(e)));
                     }
                 }).catch(e => {
-                    websocket.send(JSON.stringify({
-                        event: "sendToPropertyInspector",
-                        context: context,
-                        payload: { command: "fetchError", message: String(e) }
-                    }));
+                    log("v2 fetch threw, trying v1... " + e);
+                    requestGovee('GET', false, '/devices').then(resV1 => {
+                        if (resV1 && resV1.code === 200 && resV1.data && resV1.data.devices) {
+                            let devV1 = resV1.data.devices.map(d => ({ device: d.device, model: d.model, deviceName: d.deviceName, apiVersion: 1 }));
+                            websocket.send(JSON.stringify({
+                                event: "sendToPropertyInspector", context: context,
+                                payload: { command: "deviceList", devices: devV1 }
+                            }));
+                        } else {
+                            sendPropertyInspectorError(context, "API Error: " + (resV1.message || resV1.code));
+                        }
+                    }).catch(e2 => sendPropertyInspectorError(context, String(e2)));
                 });
             }
         } else if (event === "keyUp" || event === "touchTap") {
@@ -100,7 +126,7 @@ function getApiKey() {
     return globalSettings.apiKey || "";
 }
 
-function requestGovee(method, endpoint, body = null) {
+function requestGovee(method, isV2, endpoint, body = null) {
     return new Promise((resolve, reject) => {
         const apiKey = getApiKey();
         if (!apiKey) {
@@ -109,10 +135,11 @@ function requestGovee(method, endpoint, body = null) {
         }
 
         const options = {
-            hostname: 'developer-api.govee.com',
+            hostname: isV2 ? 'openapi.api.govee.com' : 'developer-api.govee.com',
             port: 443,
-            path: `/v1${endpoint}`,
+            path: isV2 ? `/router/api/v1${endpoint}` : `/v1${endpoint}`,
             method: method,
+            timeout: 5000,
             headers: {
                 'Govee-API-Key': apiKey,
                 'Content-Type': 'application/json'
@@ -131,46 +158,116 @@ function requestGovee(method, endpoint, body = null) {
             });
         });
 
+        req.on('timeout', () => {
+            req.destroy();
+            reject(new Error("Request timed out"));
+        });
+
         req.on('error', (e) => reject(e));
         if (body) req.write(JSON.stringify(body));
         req.end();
     });
 }
 
-async function controlDevice(device, model, cmdName, cmdValue) {
+function sendPropertyInspectorError(context, msg) {
+    if (websocket) {
+        websocket.send(JSON.stringify({
+            event: "sendToPropertyInspector",
+            context: context,
+            payload: { command: "fetchError", message: msg }
+        }));
+    }
+}
+
+async function controlDevice(dev, cmdName, cmdValue) {
+    const isV2 = dev.apiVersion === 2;
     try {
-        const res = await requestGovee('PUT', '/devices/control', {
-            device: device,
-            model: model,
-            cmd: { name: cmdName, value: cmdValue }
-        });
-        if (res.code === 200) {
-            // Optimistic cache update
-            if (!stateCache[device]) stateCache[device] = {};
-            if (cmdName === 'turn') stateCache[device].powerState = cmdValue;
-            if (cmdName === 'brightness') stateCache[device].brightness = cmdValue;
-            if (cmdName === 'color') stateCache[device].color = cmdValue;
+        if (isV2) {
+            // Map v1 commands to v2 capabilities
+            let type = "", instance = "", val = cmdValue;
+            if (cmdName === 'turn') {
+                type = "devices.capabilities.on_off";
+                instance = "powerSwitch";
+                val = cmdValue === "on" ? 1 : 0;
+            } else if (cmdName === 'brightness') {
+                type = "devices.capabilities.work_mode";
+                instance = "workMode"; // Actually it's range for brightness
+                // Wait, brightness in v2 is:
+                type = "devices.capabilities.range";
+                instance = "brightness";
+            } else if (cmdName === 'color') {
+                type = "devices.capabilities.color_setting";
+                instance = "colorRgb";
+                // v2 wants integer rgb value or obj? v2 colorRgb: value: 16711680 (integer)
+                val = (cmdValue.r << 16) | (cmdValue.g << 8) | cmdValue.b;
+            }
+
+            const payload = {
+                requestId: "uuid",
+                payload: {
+                    sku: dev.model,
+                    device: dev.device,
+                    capability: { type: type, instance: instance, value: val }
+                }
+            };
+            const res = await requestGovee('POST', true, '/device/control', payload);
+            if (res.code === 200) updateCacheOptimistic(dev.device, cmdName, cmdValue);
+        } else {
+            const res = await requestGovee('PUT', false, '/devices/control', {
+                device: dev.device,
+                model: dev.model,
+                cmd: { name: cmdName, value: cmdValue }
+            });
+            if (res.code === 200) updateCacheOptimistic(dev.device, cmdName, cmdValue);
         }
     } catch(e) {
         log(`Control error: ${e}`);
     }
 }
 
-async function getDeviceState(device, model) {
-    if (stateCache[device] && (Date.now() - stateCache[device].lastFetch < 10000)) {
-        return stateCache[device];
+function updateCacheOptimistic(deviceId, cmdName, cmdValue) {
+    if (!stateCache[deviceId]) stateCache[deviceId] = {};
+    if (cmdName === 'turn') stateCache[deviceId].powerState = cmdValue;
+    if (cmdName === 'brightness') stateCache[deviceId].brightness = cmdValue;
+    if (cmdName === 'color') stateCache[deviceId].color = cmdValue;
+}
+
+async function getDeviceState(dev) {
+    if (stateCache[dev.device] && (Date.now() - stateCache[dev.device].lastFetch < 10000)) {
+        return stateCache[dev.device];
     }
+    const isV2 = dev.apiVersion === 2;
     try {
-        const res = await requestGovee('GET', `/devices/state?device=${encodeURIComponent(device)}&model=${encodeURIComponent(model)}`);
-        if (res.code === 200 && res.data && res.data.properties) {
-            let state = { lastFetch: Date.now() };
-            res.data.properties.forEach(p => {
-                if (p.powerState) state.powerState = p.powerState;
-                if (p.brightness !== undefined) state.brightness = p.brightness;
-                if (p.color) state.color = p.color;
+        if (isV2) {
+            const res = await requestGovee('POST', true, '/device/state', {
+                requestId: "uuid",
+                payload: { sku: dev.model, device: dev.device }
             });
-            stateCache[device] = state;
-            return state;
+            if (res.code === 200 && res.payload && res.payload.capabilities) {
+                let state = { lastFetch: Date.now() };
+                res.payload.capabilities.forEach(c => {
+                    if (c.instance === 'powerSwitch') state.powerState = c.state.value === 1 ? "on" : "off";
+                    if (c.instance === 'brightness') state.brightness = c.state.value;
+                    if (c.instance === 'colorRgb') {
+                        let v = c.state.value;
+                        state.color = { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+                    }
+                });
+                stateCache[dev.device] = state;
+                return state;
+            }
+        } else {
+            const res = await requestGovee('GET', false, `/devices/state?device=${encodeURIComponent(dev.device)}&model=${encodeURIComponent(dev.model)}`);
+            if (res.code === 200 && res.data && res.data.properties) {
+                let state = { lastFetch: Date.now() };
+                res.data.properties.forEach(p => {
+                    if (p.powerState) state.powerState = p.powerState;
+                    if (p.brightness !== undefined) state.brightness = p.brightness;
+                    if (p.color) state.color = p.color;
+                });
+                stateCache[dev.device] = state;
+                return state;
+            }
         }
     } catch(e) {
         log(`State error: ${e}`);
@@ -183,11 +280,11 @@ async function handleAction(context, action, settings) {
     if (devices.length === 0) return;
 
     if (action === "com.soomfon.govee.power" || action === "com.soomfon.govee.dial") {
-        const state = await getDeviceState(devices[0].device, devices[0].model);
+        const state = await getDeviceState(devices[0]);
         const targetState = (state && state.powerState === "on") ? "off" : "on";
         
         for (let dev of devices) {
-            await controlDevice(dev.device, dev.model, "turn", targetState);
+            await controlDevice(dev, "turn", targetState);
         }
     } else if (action === "com.soomfon.govee.color") {
         let hex = settings.color || "#FF0000";
@@ -196,12 +293,12 @@ async function handleAction(context, action, settings) {
         let b = parseInt(hex.substr(5,2), 16);
         
         for (let dev of devices) {
-            await controlDevice(dev.device, dev.model, "color", {r,g,b});
+            await controlDevice(dev, "color", {r,g,b});
         }
     } else if (action === "com.soomfon.govee.brightness") {
         let br = parseInt(settings.brightness || "100");
         for (let dev of devices) {
-            await controlDevice(dev.device, dev.model, "brightness", br);
+            await controlDevice(dev, "brightness", br);
         }
     }
 
@@ -220,7 +317,7 @@ function handleDial(context, settings, ticks) {
     if (dialDebounce[context].timer) clearTimeout(dialDebounce[context].timer);
 
     dialDebounce[context].timer = setTimeout(async () => {
-        const state = await getDeviceState(devices[0].device, devices[0].model);
+        const state = await getDeviceState(devices[0]);
         let currentBr = (state && state.brightness) ? state.brightness : 50;
         let newBr = currentBr + dialDebounce[context].value;
         if (newBr > 100) newBr = 100;
@@ -229,7 +326,7 @@ function handleDial(context, settings, ticks) {
         dialDebounce[context].value = 0; // reset
 
         for (let dev of devices) {
-            await controlDevice(dev.device, dev.model, "brightness", newBr);
+            await controlDevice(dev, "brightness", newBr);
         }
         updateDeviceState(context);
     }, 300);
@@ -242,7 +339,7 @@ async function updateDeviceState(context) {
     if (devices.length === 0) return;
 
     // Use the first device's state to represent the button
-    const state = await getDeviceState(devices[0].device, devices[0].model);
+    const state = await getDeviceState(devices[0]);
     if (!state) return;
 
     const action = settings.action;
